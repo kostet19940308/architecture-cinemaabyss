@@ -124,8 +124,3 @@ jobs:
           labels: ${{ steps.meta-events.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-  run-api-tests:
-    uses: ./.github/workflows/api-tests.yml
-    with:
-      environment: docker
-      test_folder: ""
