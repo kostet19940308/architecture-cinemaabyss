@@ -29,6 +29,8 @@ spec:
         env:
         - name: PORT
           value: "8082"
+        - name: KAFKA_BROKERS
+          value: "kafka:9092"
         - name: DB_CONNECTION_STRING
           value: "postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable"
         envFrom:

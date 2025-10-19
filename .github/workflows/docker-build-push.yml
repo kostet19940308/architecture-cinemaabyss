@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-        
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -58,6 +58,7 @@ jobs:
         with:
           context: ./src/monolith
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta-monolith.outputs.tags }}
           labels: ${{ steps.meta-monolith.outputs.labels }}
           cache-from: type=gha
@@ -80,10 +81,12 @@ jobs:
         with:
           context: ./src/microservices/movies
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta-movies.outputs.tags }}
           labels: ${{ steps.meta-movies.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
       - name: Extract metadata (tags, labels) for Proxy Service
         id: meta-proxy
         uses: docker/metadata-action@v4
@@ -101,6 +104,7 @@ jobs:
         with:
           context: ./src/microservices/proxy
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta-proxy.outputs.tags }}
           labels: ${{ steps.meta-proxy.outputs.labels }}
           cache-from: type=gha
@@ -128,3 +132,8 @@ jobs:
           labels: ${{ steps.meta-events.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  run-api-tests:
+    uses: ./.github/workflows/api-tests.yml
+    with:
+      environment: docker
+      test_folder: ""
