@@ -120,6 +120,7 @@ jobs:
         with:
           context: ./src/microservices/events
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta-events.outputs.tags }}
           labels: ${{ steps.meta-events.outputs.labels }}
           cache-from: type=gha

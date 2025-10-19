@@ -1,5 +1,5 @@
 # ---------- Build stage ----------
-FROM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
@@ -16,7 +16,8 @@ COPY . .
 RUN go mod tidy && go mod download
 
 # 3) сборка
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o events-service ./main.go
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="-s -w" -o events-service ./main.go
 
 # ---------- Runtime stage ----------
 FROM alpine:3.20
