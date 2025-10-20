@@ -13,7 +13,6 @@ import (
 	"github.com/IBM/sarama"
 )
 
-// ====== Config ======
 type Config struct {
 	Port         string
 	KafkaBrokers []string
@@ -37,7 +36,6 @@ func loadConfig(log *slog.Logger) Config {
 	return Config{Port: port, KafkaBrokers: brokers}
 }
 
-// ====== API Schemas (совместимы со спецификацией) ======
 type Event struct {
 	ID        string         `json:"id"`
 	Type      string         `json:"type"`
@@ -79,7 +77,6 @@ type PaymentEvent struct {
 	Method    *string `json:"method_type,omitempty"`
 }
 
-// ====== Kafka client (producer + read-back) ======
 type Kafka struct {
 	log      *slog.Logger
 	producer sarama.SyncProducer
@@ -101,7 +98,6 @@ func newKafka(log *slog.Logger, brokers []string) (*Kafka, error) {
 
 func (k *Kafka) Close() error { return k.producer.Close() }
 
-// produceAndRead публикует сообщение и затем читает его же (по partition/offset)
 func (k *Kafka) produceAndRead(ctx context.Context, topic string, key string, value []byte) (partition int32, offset int64, readMsg *sarama.ConsumerMessage, err error) {
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
@@ -126,7 +122,6 @@ func (k *Kafka) produceAndRead(ctx context.Context, topic string, key string, va
 	}
 	defer pc.Close()
 
-	// Считываем ровно наше сообщение (offset совпадает) с тайм-аутом
 	t := time.NewTimer(3 * time.Second)
 	defer t.Stop()
 
@@ -150,7 +145,6 @@ func (k *Kafka) produceAndRead(ctx context.Context, topic string, key string, va
 	}
 }
 
-// ====== HTTP Handlers ======
 type Server struct {
 	log   *slog.Logger
 	cfg   Config
@@ -165,10 +159,8 @@ func NewServer(log *slog.Logger, cfg Config, k *Kafka) *Server {
 		kafka: k,
 		mux:   http.NewServeMux(),
 	}
-	// health
 	s.mux.HandleFunc("/api/events/health", s.handleHealth)
 
-	// events
 	s.mux.HandleFunc("/api/events/movie", s.handleMovieEvent)
 	s.mux.HandleFunc("/api/events/user", s.handleUserEvent)
 	s.mux.HandleFunc("/api/events/payment", s.handlePaymentEvent)
@@ -177,7 +169,6 @@ func NewServer(log *slog.Logger, cfg Config, k *Kafka) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// простая общая обёртка с логами
 	start := time.Now()
 	s.mux.ServeHTTP(w, r)
 	s.log.Info("request", "method", r.Method, "path", r.URL.Path, "dur", time.Since(start).String())
@@ -195,7 +186,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // ---------- helpers ----------
 func toEvent(t string, payload any) (Event, error) {
-	// упакуем payload в map[string]any
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return Event{}, err
@@ -222,7 +212,6 @@ func respondProduced(w http.ResponseWriter, topic string, ev Event, p int32, o i
 	writeJSON(w, http.StatusCreated, resp)
 }
 
-// ---------- /api/events/movie ----------
 func (s *Server) handleMovieEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -253,7 +242,6 @@ func (s *Server) handleMovieEvent(w http.ResponseWriter, r *http.Request) {
 	respondProduced(w, "movie-events", ev, partition, offset)
 }
 
-// ---------- /api/events/user ----------
 func (s *Server) handleUserEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -284,7 +272,6 @@ func (s *Server) handleUserEvent(w http.ResponseWriter, r *http.Request) {
 	respondProduced(w, "user-events", ev, partition, offset)
 }
 
-// ---------- /api/events/payment ----------
 func (s *Server) handlePaymentEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -315,7 +302,6 @@ func (s *Server) handlePaymentEvent(w http.ResponseWriter, r *http.Request) {
 	respondProduced(w, "payment-events", ev, partition, offset)
 }
 
-// ====== main ======
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	logger.Info("starting events-service")
