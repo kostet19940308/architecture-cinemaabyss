@@ -1,0 +1,96 @@
+@startuml
+!include <C4/C4_Container>
+
+
+Person(user, "Пользователь", "Web, Mobile, Smart TV")
+
+System_Boundary(sys, "Видео-платформа") {
+
+  Boundary(exp, "Experience (BFF Layer)") {
+    Container(api, "API Gateway (Kong)", "Kong", "TLS termination, rate limiting, routing, observability")
+    Container(bff_web,    "Web BFF",    "Go + gRPC", "Адаптация API под Web")
+    Container(bff_mobile, "Mobile BFF", "Go + gRPC", "Адаптация API под Mobile")
+    Container(bff_tv,     "TV BFF",     "Go + gRPC", "Адаптация API под TV")
+  }
+
+  Boundary(identity, "Identity") {
+    Container(auth,      "Auth Service",        "Go + gRPC", "OIDC/JWT, refresh")
+    ContainerDb(auth_db, "Auth DB",             "PostgreSQL", "Учётные записи, токены")
+    Container(users,     "User Service",        "Go + gRPC", "Профили, настройки")
+    ContainerDb(users_db,"User DB",             "PostgreSQL", "Данные профилей")
+  }
+
+  Boundary(content, "Content") {
+    Container(movies,    "Movies Service",      "Go + gRPC", "Каталог фильмов, доступ, интеграция с видео-хостингом")
+    ContainerDb(movies_db,"Movies DB",          "PostgreSQL", "Фильмы, связи, статусы, источники")
+
+    Container(meta,      "Metadata Service",    "Go + gRPC", "Жанры, актёры, описания, ссылки на изображения")
+    ContainerDb(meta_db, "Metadata DB",         "PostgreSQL", "Метаданные контента, индексы")
+  }
+
+  Boundary(monet, "Monetization") {
+    Container(paybill,   "Payments & Billing Service", "Go + gRPC", "Платежи, подписки, проверка доступа")
+    ContainerDb(paybill_db,"Payments & Billing DB",    "PostgreSQL", "Транзакции, планы, статусы подписок")
+  }
+
+  Boundary(reco_bc, "Recommendations") {
+    Container(reco,  "Reco Adapter", "Go + gRPC", "Подписчик Kafka; мост к внешней RS; Redis кэш")
+    ContainerQueue(redis,"Redis (Cache)", "Redis", "Персональные рекомендации (TTL)")
+  }
+
+  ContainerQueue(kafka,  "Kafka", "Event Streaming", "Внутренние доменные события")
+}
+
+System_Ext(pay_ext,  "Платёжная система", "External")
+System_Ext(vhost,    "External Video Hosting", "External")
+System_Ext(s3img,    "External S3 (Images)", "External")
+System_Ext(reco_ext, "Внешняя рекомендательная система", "External")
+ContainerQueue(rmq,  "RabbitMQ (Reco Bridge)", "AMQP", "Только мост Reco ↔ внешняя RS")
+
+Rel(user, api, "HTTPS • вход • TLS termination / rate limiting")
+Rel(api, bff_web,    "gRPC • маршрутизация на Web BFF")
+Rel(api, bff_mobile, "gRPC • маршрутизация на Mobile BFF")
+Rel(api, bff_tv,     "gRPC • маршрутизация на TV BFF")
+
+Rel(bff_web,    auth,  "gRPC • validate/refresh токена")
+Rel(bff_mobile, auth,  "gRPC • validate/refresh токена")
+Rel(bff_tv,     auth,  "gRPC • validate/refresh токена")
+
+Rel(bff_web,    users, "gRPC • профиль/настройки")
+Rel(bff_mobile, users, "gRPC • профиль/настройки")
+Rel(bff_tv,     users, "gRPC • профиль/настройки")
+
+Rel(bff_web,    movies, "gRPC • витрины/доступ/playback-параметры")
+Rel(bff_mobile, movies, "gRPC • витрины/доступ/playback-параметры")
+Rel(bff_tv,     movies, "gRPC • витрины/доступ/playback-параметры")
+
+Rel(bff_web,    meta,   "gRPC • жанры/актеры/описания/постеры")
+Rel(bff_mobile, meta,   "gRPC • жанры/актеры/описания/постеры")
+Rel(bff_tv,     meta,   "gRPC • жанры/актеры/описания/постерыё")
+
+Rel(bff_web,    paybill, "gRPC • создать платёж/проверить подписку")
+Rel(bff_mobile, paybill, "gRPC • создать платёж/проверить подписку")
+
+Rel(movies, paybill, "gRPC • проверка права просмотра")
+
+Rel(movies, vhost, "HTTPS • получить playback-URL/DRM")
+Rel(meta,   s3img, "HTTPS • pre-signed URL на изображенияъ")
+
+Rel(paybill, pay_ext, "HTTPS • create/capture/refund")
+Rel(pay_ext, paybill, "HTTPS • webhooks статусов")
+
+Rel_R(movies,  kafka, "Kafka • publish: movie_published, movie_view_*")
+Rel_R(paybill, kafka, "Kafka • publish: subscription_changed")
+Rel_R(reco,    kafka, "Kafka • consume: movies.*, subscriptions.lifecycle")
+
+Rel(reco, redis, "TCP • cache get/set")
+Rel_R(reco,     rmq,  "AMQP • publish/consume запросы/ответы RS ")
+Rel_R(reco_ext, rmq,  "AMQP • consume/publish")
+
+Rel(auth,   auth_db,   "SQL • транзакции auth/refresh")
+Rel(users,  users_db,  "SQL • CRUD профиля/настроек")
+Rel(movies, movies_db, "SQL • фильмы/источники/статусы")
+Rel(meta,   meta_db,   "SQL • метаданные/индексы")
+Rel(paybill,paybill_db,"SQL • платежи/подписки")
+
+@enduml

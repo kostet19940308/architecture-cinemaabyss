@@ -5,6 +5,14 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      test_folder:
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       environment:
